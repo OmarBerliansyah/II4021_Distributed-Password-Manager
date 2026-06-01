@@ -1,0 +1,2 @@
+-- SQLite schema for server database
+-- Table: users (user_id, server_share, vault_ciphertext, vault_nonce, created_at, updated_at)

@@ -1,0 +1,23 @@
+# CLI and UI Libraries
+typer>=0.9.0
+rich>=13.0.0
+
+# Server Libraries
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# HTTP Client
+requests>=2.31.0
+httpx>=0.25.0
+
+# Cryptography
+cryptography>=41.0.0
+
+# Data Validation
+pydantic>=2.5.0
+
+# Visual Cryptography (optional)
+pillow>=10.0.0
+numpy>=1.24.0
+qrcode>=7.4.0
+opencv-python>=4.8.0
