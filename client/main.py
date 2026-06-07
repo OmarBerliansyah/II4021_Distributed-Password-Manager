@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import base64
+import re
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
 import typer
+from click import Choice
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 
 from client import crypto_utils, local_store, shamir
@@ -33,8 +36,13 @@ from client.vault import (
 )
 
 
-app = typer.Typer(no_args_is_help=True, help="Distributed password manager client.")
+app = typer.Typer(
+    invoke_without_command=True,
+    no_args_is_help=False,
+    help="Distributed password manager client.",
+)
 console = Console()
+VISUAL_OUTPUT_ROOT = "visual-crypto"
 
 
 class ClientError(RuntimeError):
@@ -333,6 +341,330 @@ def _workflow() -> VaultWorkflow:
     return VaultWorkflow(RuntimeBackend(), ApiClient())
 
 
+@app.callback()
+def main_menu(ctx: typer.Context) -> None:
+    """Open the interactive application when no subcommand is provided."""
+    if ctx.invoked_subcommand is None:
+        run_interactive()
+
+
+def run_interactive() -> None:
+    while True:
+        _show_main_menu()
+        choice = typer.prompt(
+            "Choose an option",
+            type=Choice(["0", "1", "2", "3", "4", "5"]),
+        )
+        if choice == "0":
+            console.print("[cyan]Goodbye.[/cyan]")
+            return
+        if choice == "1":
+            _interactive_initialize()
+        elif choice == "2":
+            _interactive_login()
+        elif choice == "3":
+            _interactive_backup()
+        elif choice == "4":
+            _interactive_generate_password()
+        else:
+            _interactive_visual_crypto()
+
+
+def _show_main_menu() -> None:
+    console.print(
+        Panel.fit(
+            "[bold cyan]Distributed Password Manager[/bold cyan]\n"
+            "Client-side encryption with Shamir Secret Sharing",
+            border_style="cyan",
+        )
+    )
+    console.print("[bold]1.[/bold] Initialize new vault")
+    console.print("[bold]2.[/bold] Login to vault")
+    console.print("[bold]3.[/bold] Open backup mode")
+    console.print("[bold]4.[/bold] Generate secure password")
+    console.print("[bold]5.[/bold] Visual recovery tools")
+    console.print("[bold]0.[/bold] Exit")
+
+
+def _interactive_initialize() -> None:
+    user_id = typer.prompt("User ID")
+    master_password = typer.prompt(
+        "Master password",
+        hide_input=True,
+        confirmation_prompt=True,
+    )
+
+    def action() -> None:
+        recovery_share = _workflow().initialize(user_id, master_password)
+        _show_recovery_share(recovery_share)
+        if typer.confirm("Create visual recovery shares now?", default=False):
+            output_dir = _visual_output_directory(
+                typer.prompt("Save name", default=user_id)
+            )
+            files = create_visual_recovery_shares(recovery_share, output_dir)
+            _show_visual_files(files)
+
+    _run_interactive_action(action)
+
+
+def _interactive_login() -> None:
+    user_id = typer.prompt("User ID")
+    master_password = typer.prompt("Master password", hide_input=True)
+    session: VaultSession | None = None
+
+    def action() -> None:
+        nonlocal session
+        session = _workflow().open_normal(user_id, master_password)
+
+    if _run_interactive_action(action) and session is not None:
+        console.print(f"[green]Vault opened for {session.user_id}.[/green]")
+        _interactive_vault_session(session)
+
+
+def _interactive_vault_session(session: VaultSession) -> None:
+    workflow = _workflow()
+    while True:
+        console.print()
+        console.print(f"[bold cyan]Vault: {session.user_id}[/bold cyan]")
+        console.print("[bold]1.[/bold] List entries")
+        console.print("[bold]2.[/bold] Add entry")
+        console.print("[bold]3.[/bold] Edit entry")
+        console.print("[bold]4.[/bold] Delete entry")
+        console.print("[bold]0.[/bold] Logout")
+        choice = typer.prompt(
+            "Choose an option",
+            type=Choice(["0", "1", "2", "3", "4"]),
+        )
+        if choice == "0":
+            console.print("[cyan]Logged out.[/cyan]")
+            return
+        if choice == "1":
+            _show_vault(
+                session,
+                show_passwords=typer.confirm("Show passwords?", default=False),
+            )
+        elif choice == "2":
+            _interactive_add_entry(workflow, session)
+        elif choice == "3":
+            _interactive_edit_entry(workflow, session)
+        else:
+            _interactive_delete_entry(workflow, session)
+
+
+def _interactive_add_entry(
+    workflow: VaultWorkflow,
+    session: VaultSession,
+) -> None:
+    nama_layanan = typer.prompt("Service name")
+    username = typer.prompt("Username or email")
+    catatan = typer.prompt("Note", default="")
+    use_generated = typer.confirm("Generate password automatically?", default=False)
+    if use_generated:
+        password = _interactive_password_value()
+        console.print(f"Generated password: [bold]{password}[/bold]")
+    else:
+        password = typer.prompt("Password", hide_input=True)
+
+    def action() -> None:
+        entry = add_entry(
+            session.vault,
+            nama_layanan,
+            username,
+            password,
+            catatan,
+        )
+        workflow.persist(session)
+        console.print(f"[green]Entry added: {entry['id']}[/green]")
+
+    _run_interactive_action(action)
+
+
+def _interactive_edit_entry(
+    workflow: VaultWorkflow,
+    session: VaultSession,
+) -> None:
+    _show_vault(session, show_passwords=False)
+    entry_id = typer.prompt("Entry ID")
+    console.print("[bold]1.[/bold] Service name")
+    console.print("[bold]2.[/bold] Username or email")
+    console.print("[bold]3.[/bold] Password")
+    console.print("[bold]4.[/bold] Note")
+    choice = typer.prompt(
+        "Field to edit",
+        type=Choice(["1", "2", "3", "4"]),
+    )
+    updates: dict[str, str] = {}
+    if choice == "1":
+        updates["nama_layanan"] = typer.prompt("New service name")
+    elif choice == "2":
+        updates["username"] = typer.prompt("New username or email")
+    elif choice == "3":
+        if typer.confirm("Generate password automatically?", default=False):
+            updates["password"] = _interactive_password_value()
+            console.print(f"Generated password: [bold]{updates['password']}[/bold]")
+        else:
+            updates["password"] = typer.prompt(
+                "New password",
+                hide_input=True,
+                confirmation_prompt=True,
+            )
+    else:
+        updates["catatan"] = typer.prompt("New note", default="")
+
+    def action() -> None:
+        edit_entry(session.vault, entry_id, **updates)
+        workflow.persist(session)
+        console.print(f"[green]Entry updated: {entry_id}[/green]")
+
+    _run_interactive_action(action)
+
+
+def _interactive_delete_entry(
+    workflow: VaultWorkflow,
+    session: VaultSession,
+) -> None:
+    _show_vault(session, show_passwords=False)
+    entry_id = typer.prompt("Entry ID")
+    if not typer.confirm(f"Delete entry {entry_id}?", default=False):
+        console.print("[yellow]Deletion cancelled.[/yellow]")
+        return
+
+    def action() -> None:
+        delete_entry(session.vault, entry_id)
+        workflow.persist(session)
+        console.print(f"[green]Entry deleted: {entry_id}[/green]")
+
+    _run_interactive_action(action)
+
+
+def _interactive_backup() -> None:
+    user_id = typer.prompt("User ID")
+    master_password = typer.prompt("Master password", hide_input=True)
+    recovery_share = typer.prompt("Recovery share", hide_input=True)
+
+    def action() -> None:
+        session = _workflow().open_backup(
+            user_id,
+            master_password,
+            recovery_share,
+        )
+        _show_vault(
+            session,
+            show_passwords=typer.confirm("Show passwords?", default=False),
+        )
+        console.print("[yellow]Backup mode is read-only.[/yellow]")
+
+    _run_interactive_action(action)
+
+
+def _interactive_generate_password() -> None:
+    password = _interactive_password_value()
+    console.print(f"Generated password: [bold green]{password}[/bold green]")
+
+
+def _interactive_password_value() -> str:
+    length = typer.prompt("Password length", default=20, type=int)
+    uppercase = typer.confirm("Include uppercase letters?", default=True)
+    lowercase = typer.confirm("Include lowercase letters?", default=True)
+    digits = typer.confirm("Include numbers?", default=True)
+    symbols = typer.confirm("Include symbols?", default=True)
+    return generate_secure_password(
+        length,
+        uppercase=uppercase,
+        lowercase=lowercase,
+        digits=digits,
+        symbols=symbols,
+    )
+
+
+def _interactive_visual_crypto() -> None:
+    while True:
+        console.print()
+        console.print("[bold cyan]Visual Recovery Tools[/bold cyan]")
+        console.print("[bold]1.[/bold] Create QR and two visual shares")
+        console.print("[bold]2.[/bold] Combine two visual shares")
+        console.print("[bold]0.[/bold] Back")
+        choice = typer.prompt(
+            "Choose an option",
+            type=Choice(["0", "1", "2"]),
+        )
+        if choice == "0":
+            return
+        if choice == "1":
+            recovery_share = typer.prompt("Recovery share", hide_input=True)
+            output_dir = _visual_output_directory(
+                typer.prompt("Save name", default="recovery")
+            )
+
+            def split_action() -> None:
+                shamir.deserialize_share(recovery_share)
+                files = create_visual_recovery_shares(recovery_share, output_dir)
+                _show_visual_files(files)
+
+            _run_interactive_action(split_action)
+        else:
+            share_1 = Path(typer.prompt("Visual share 1 path"))
+            share_2 = Path(typer.prompt("Visual share 2 path"))
+            output_dir = _visual_output_directory(
+                typer.prompt("Save name", default="combined")
+            )
+            output = output_dir / "combined_qr.png"
+
+            def combine_action() -> None:
+                combined = combine_visual_shares(share_1, share_2, output)
+                recovered_share = decode_qr(combined)
+                shamir.deserialize_share(recovered_share)
+                console.print(f"Combined QR: {combined}")
+                console.print("[green]Recovered share is valid.[/green]")
+                console.print(recovered_share)
+
+            _run_interactive_action(combine_action)
+
+
+def _show_visual_files(files: Any) -> None:
+    console.print(f"Original QR: {files.original_qr}")
+    console.print(f"Visual share 1: {files.share_1}")
+    console.print(f"Visual share 2: {files.share_2}")
+    console.print(f"Combined QR: {files.combined_qr}")
+    console.print("[green]Combined QR decoded successfully.[/green]")
+
+
+def _visual_output_directory(save_name: str) -> Path:
+    normalized = save_name.strip()
+    if not normalized:
+        raise VisualCryptoError("Save name must not be empty.")
+    if normalized in {".", ".."} or not re.fullmatch(r"[A-Za-z0-9._ -]+", normalized):
+        raise VisualCryptoError(
+            "Save name may only contain letters, numbers, spaces, '.', '-' and '_'."
+        )
+
+    output_dir = Path.cwd() / VISUAL_OUTPUT_ROOT / normalized
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
+def _run_interactive_action(action: Callable[[], None]) -> bool:
+    try:
+        action()
+        return True
+    except (
+        ApiClientError,
+        ClientError,
+        EntryNotFoundError,
+        IntegrationUnavailableError,
+        PasswordGeneratorError,
+        VisualCryptoError,
+        VaultError,
+        KeyError,
+        UnicodeDecodeError,
+        ValueError,
+    ) as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+    except Exception:
+        console.print("[red]Error:[/red] Vault access or authentication failed.")
+    return False
+
+
 @app.command("init")
 def init_command(
     user_id: str = typer.Option(..., prompt=True),
@@ -504,7 +836,7 @@ def backup(
 @app.command("visual-split")
 def visual_split(
     output_dir: Path = typer.Option(
-        Path("recovery-images"),
+        Path("visual-crypto"),
         "--output-dir",
         file_okay=False,
         dir_okay=True,
