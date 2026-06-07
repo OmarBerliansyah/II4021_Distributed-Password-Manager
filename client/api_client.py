@@ -71,13 +71,11 @@ class ApiClient:
                 timeout=self.timeout,
                 **kwargs,
             )
-            response.raise_for_status()
-        except requests.HTTPError as exc:
-            detail = _extract_error_detail(exc.response)
-            raise ApiClientError(detail) from exc
         except requests.RequestException as exc:
             raise ApiClientError(str(exc)) from exc
 
+        if response.status_code >= 400:
+            raise ApiClientError(_extract_error_detail(response))
         if not response.content:
             return {}
         return response.json()

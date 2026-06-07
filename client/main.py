@@ -111,6 +111,7 @@ class VaultWorkflow:
     def initialize(self, user_id: str, master_password: str) -> str:
         user_id = _required(user_id, "User ID")
         master_password = _required(master_password, "Master password")
+        self._ensure_vault_does_not_exist(user_id)
         master_key = self.backend.generate_master_key()
         local_share, server_share, recovery_share = self.backend.split_master_key(master_key)
         ciphertext, nonce = self.backend.encrypt_vault(
@@ -137,6 +138,15 @@ class VaultWorkflow:
             encoded_nonce,
         )
         return recovery_share
+
+    def _ensure_vault_does_not_exist(self, user_id: str) -> None:
+        try:
+            self.api.fetch_vault(user_id)
+        except ApiClientError as exc:
+            if str(exc) == "Vault not found.":
+                return
+            raise
+        raise ClientError("Vault already exists for this user.")
 
     def open_normal(self, user_id: str, master_password: str) -> VaultSession:
         local_share = self.backend.load_local_share(user_id, master_password)

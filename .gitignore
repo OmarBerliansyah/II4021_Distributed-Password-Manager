@@ -1,6 +1,10 @@
 # Runtime directories
 .vault_client/
 server_data/
+.pytest-tmp/
+.pytest-cache/
+.pytest_cache/
+.pytest-run-*/
 
 # Python
 __pycache__/

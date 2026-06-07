@@ -21,7 +21,7 @@ def client(db_path):
         yield test_client
 
 
-def sample_payload(user_id="atharizza"):
+def sample_payload(user_id="fulan"):
     return {
         "user_id": user_id,
         "server_share": '{"x":2,"y":"c2VydmVyLXNoYXJl","prime":"fixed-field-id"}',
@@ -200,13 +200,13 @@ def test_api_client_sends_expected_vault_requests():
 
     assert api_client.health() == {"ok": True}
     assert api_client.init_vault(
-        "atharizza",
+        "fulan",
         "server-share",
         "ciphertext",
         "nonce",
     ) == {"ok": True}
-    assert api_client.fetch_vault("atharizza") == {"ok": True}
-    assert api_client.update_vault("atharizza", "new-ciphertext", "new-nonce") == {"ok": True}
+    assert api_client.fetch_vault("fulan") == {"ok": True}
+    assert api_client.update_vault("fulan", "new-ciphertext", "new-nonce") == {"ok": True}
 
     assert session.calls == [
         {
@@ -221,7 +221,7 @@ def test_api_client_sends_expected_vault_requests():
             "timeout": 10.0,
             "kwargs": {
                 "json": {
-                    "user_id": "atharizza",
+                    "user_id": "fulan",
                     "server_share": "server-share",
                     "vault_ciphertext": "ciphertext",
                     "vault_nonce": "nonce",
@@ -230,13 +230,13 @@ def test_api_client_sends_expected_vault_requests():
         },
         {
             "method": "GET",
-            "url": "http://127.0.0.1:8010/vault/atharizza",
+            "url": "http://127.0.0.1:8010/vault/fulan",
             "timeout": 10.0,
             "kwargs": {},
         },
         {
             "method": "PUT",
-            "url": "http://127.0.0.1:8010/vault/atharizza",
+            "url": "http://127.0.0.1:8010/vault/fulan",
             "timeout": 10.0,
             "kwargs": {
                 "json": {

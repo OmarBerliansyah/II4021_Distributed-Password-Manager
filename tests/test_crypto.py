@@ -17,7 +17,7 @@ def test_aes_gcm_round_trip_for_vault_payload():
     key = crypto_utils.generate_master_key()
     plaintext = (
         b'{"entries":[{"nama_layanan":"Portal Kampus",'
-        b'"username":"omar@std.stei.itb.ac.id",'
+        b'"username":"fulan@std.stei.itb.ac.id",'
         b'"password":"rahasia-kuat","catatan":"akun akademik"}]}'
     )
 
@@ -57,9 +57,9 @@ def test_pbkdf2_is_stable_for_same_input_and_changes_with_salt():
     salt = b"s" * 16
     other_salt = b"t" * 16
 
-    first = crypto_utils.derive_key("master password Omar", salt, iterations=10_000)
-    second = crypto_utils.derive_key("master password Omar", salt, iterations=10_000)
-    third = crypto_utils.derive_key("master password Omar", other_salt, iterations=10_000)
+    first = crypto_utils.derive_key("master password fulan", salt, iterations=10_000)
+    second = crypto_utils.derive_key("master password fulan", salt, iterations=10_000)
+    third = crypto_utils.derive_key("master password fulan", other_salt, iterations=10_000)
 
     assert len(first) == 16
     assert first == second

@@ -15,14 +15,14 @@ def test_runtime_backend_keeps_local_share_encrypted(monkeypatch, tmp_path):
     ciphertext, nonce = backend.encrypt_vault(master_key, b'{"entries":[]}')
 
     backend.save_local_state(
-        "omar",
+        "fulan",
         "master password yang benar",
         local_share,
         ciphertext,
         nonce,
     )
 
-    path = local_store.client_config_path("omar")
+    path = local_store.client_config_path("fulan")
     saved_text = path.read_text(encoding="utf-8")
     saved_json = json.loads(saved_text)
 
@@ -30,7 +30,7 @@ def test_runtime_backend_keeps_local_share_encrypted(monkeypatch, tmp_path):
     assert saved_json["kdf"] == "pbkdf2-hmac-sha256"
     assert saved_json["kdf_iterations"] == crypto_utils.KDF_ITERATIONS
     assert saved_json["kdf_key_length"] == crypto_utils.MASTER_KEY_SIZE
-    assert backend.load_local_share("omar", "master password yang benar") == local_share
+    assert backend.load_local_share("fulan", "master password yang benar") == local_share
 
 
 def test_wrong_master_password_cannot_open_local_share(monkeypatch, tmp_path):
@@ -105,10 +105,10 @@ def test_local_store_rejects_missing_config(monkeypatch, tmp_path):
 
 def test_config_file_name_does_not_expose_user_id(monkeypatch, tmp_path):
     monkeypatch.setenv(local_store.CLIENT_DIR_ENV, str(tmp_path))
-    path = local_store.client_config_path("omar@example.com")
+    path = local_store.client_config_path("fulan@example.com")
 
     assert path.parent == tmp_path
-    assert "omar" not in path.name
+    assert "fulan" not in path.name
     assert "example" not in path.name
 
 
