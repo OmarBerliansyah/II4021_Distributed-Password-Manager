@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import secrets
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Protocol
 
 import typer
@@ -12,6 +13,12 @@ from rich.table import Table
 from client import crypto_utils, local_store, shamir
 from client.api_client import ApiClient, ApiClientError
 from client.password_generator import PasswordGeneratorError, generate_secure_password
+from client.visual_crypto import (
+    VisualCryptoError,
+    combine_visual_shares,
+    create_visual_recovery_shares,
+    decode_qr,
+)
 from client.vault import (
     EntryNotFoundError,
     Vault,
@@ -494,6 +501,46 @@ def backup(
     )
 
 
+@app.command("visual-split")
+def visual_split(
+    output_dir: Path = typer.Option(
+        Path("recovery-images"),
+        "--output-dir",
+        file_okay=False,
+        dir_okay=True,
+    ),
+) -> None:
+    recovery_share = typer.prompt("Recovery share", hide_input=True)
+
+    def action() -> None:
+        shamir.deserialize_share(recovery_share)
+        files = create_visual_recovery_shares(recovery_share, output_dir)
+        console.print(f"Original QR: {files.original_qr}")
+        console.print(f"Visual share 1: {files.share_1}")
+        console.print(f"Visual share 2: {files.share_2}")
+        console.print(f"Combined QR: {files.combined_qr}")
+        console.print("[green]Combined QR decoded successfully.[/green]")
+
+    _run_command(action)
+
+
+@app.command("visual-combine")
+def visual_combine(
+    share_1: Path = typer.Option(..., "--share-1", exists=True, dir_okay=False),
+    share_2: Path = typer.Option(..., "--share-2", exists=True, dir_okay=False),
+    output: Path = typer.Option(Path("combined_qr.png"), "--output", dir_okay=False),
+) -> None:
+    def action() -> None:
+        combined = combine_visual_shares(share_1, share_2, output)
+        recovered_share = decode_qr(combined)
+        shamir.deserialize_share(recovered_share)
+        console.print(f"Combined QR: {combined}")
+        console.print("[green]Recovered share is valid.[/green]")
+        console.print(recovered_share)
+
+    _run_command(action)
+
+
 def _show_recovery_share(recovery_share: str) -> None:
     console.print("[bold yellow]Save this recovery share now.[/bold yellow]")
     console.print("It will not be shown again.")
@@ -530,6 +577,7 @@ def _run_command(action: Callable[[], None]) -> None:
         EntryNotFoundError,
         IntegrationUnavailableError,
         PasswordGeneratorError,
+        VisualCryptoError,
         VaultError,
         KeyError,
         UnicodeDecodeError,

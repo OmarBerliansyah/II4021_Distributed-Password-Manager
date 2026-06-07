@@ -5,6 +5,8 @@ server_data/
 .pytest-cache/
 .pytest_cache/
 .pytest-run-*/
+recovery-images/
+combined_qr.png
 
 # Python
 __pycache__/
