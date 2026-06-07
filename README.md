@@ -66,8 +66,13 @@ pip install -r requirements.txt
 ### Start the Server
 
 ```bash
-uvicorn server.app:app --reload
+uvicorn server.app:app --host 127.0.0.1 --port 8010 --reload
 ```
+
+### Environment / Configuration
+
+- `DPM_SERVER_URL`: client API base URL. Default: `http://127.0.0.1:8010`.
+- `DPM_DB_PATH`: SQLite database path. Default: `server/vaults.db`.
 
 ### Client Commands
 
