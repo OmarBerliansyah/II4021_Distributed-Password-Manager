@@ -119,8 +119,3 @@ python -m client.main generate-password
 - Atharizza Muhammad Athaya - 18223075
 - Muhammad Omar Berliansyah - 18223055
 - Ferro Arka Berlian - 18223027
-
-## Deliverables
-
-- Source code (this repository)
-- Report PDF
