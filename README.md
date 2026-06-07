@@ -120,6 +120,6 @@ python -m client.main generate-password
 
 ## Team Members
 
-- Atharizza Muhammad Athaya - 18223075
+- Atharizza Muhammad Athaya - 18223079
 - Muhammad Omar Berliansyah - 18223055
 - Ferro Arka Berlian - 18223027
