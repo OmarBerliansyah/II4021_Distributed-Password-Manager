@@ -52,7 +52,6 @@ distributed-password-manager/
 │   └── test_integration.py
 ├── requirements.txt
 ├── README.md
-└── laporan/               # Report deliverables
 ```
 
 ## Installation
