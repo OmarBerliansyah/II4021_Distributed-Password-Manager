@@ -219,8 +219,6 @@ class VaultWorkflow:
 
 
 class RuntimeBackend:
-    """Adapter contract for Omar's crypto, Shamir, and local storage modules."""
-
     def generate_master_key(self) -> bytes:
         return _call(crypto_utils, "generate_master_key")
 
@@ -278,6 +276,9 @@ class RuntimeBackend:
             user_id,
             {
                 "salt": _encode_bytes(salt),
+                "kdf": "pbkdf2-hmac-sha256",
+                "kdf_iterations": crypto_utils.KDF_ITERATIONS,
+                "kdf_key_length": crypto_utils.MASTER_KEY_SIZE,
                 "encrypted_local_share": _encode_bytes(encrypted_share),
                 "local_share_nonce": _encode_bytes(share_nonce),
                 "backup_ciphertext": _encode_bytes(backup_ciphertext),
@@ -292,6 +293,7 @@ class RuntimeBackend:
             "derive_key",
             master_password,
             _decode_bytes(config["salt"]),
+            iterations=int(config.get("kdf_iterations", crypto_utils.KDF_ITERATIONS)),
         )
         plaintext = self.decrypt_vault(
             derived_key,
@@ -530,13 +532,13 @@ def _run_command(action: Callable[[], None]) -> None:
         raise typer.Exit(code=1) from exc
 
 
-def _call(module: Any, name: str, *args: Any) -> Any:
+def _call(module: Any, name: str, *args: Any, **kwargs: Any) -> Any:
     function = getattr(module, name, None)
     if not callable(function):
         raise IntegrationUnavailableError(
             f"Missing teammate integration function: {module.__name__}.{name}()."
         )
-    return function(*args)
+    return function(*args, **kwargs)
 
 
 def _required(value: str, label: str) -> str:
